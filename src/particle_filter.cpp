@@ -25,8 +25,10 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-    // set all weights to 1
-    weights.assign(num_particles, 1.0f);
+    // inform of init
+    std::cout << "Particle Filter initialization called!" << std::endl;
+    num_particles = 100;
+    std::cout << "Number of particles: " << num_particles << std::endl;
 
     // create norm distributions for x, y and theta
     std::default_random_engine gen;
@@ -40,8 +42,11 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
         tmp.x = norm_x(gen);
         tmp.y = norm_y(gen);
         tmp.theta = norm_t(gen);
+        tmp.weight = 1.0;
         particles.push_back(tmp);
     }
+
+    is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
@@ -71,32 +76,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
     }
 }
 
-void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
-	// TODO: Find the predicted measurement that is closest to each observed measurement and assign the 
-	//   observed measurement to this particular landmark.
-	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
-	//   implement this method and use it as a helper during the updateWeights phase.
-
-    // for each observation, find closest and set values to those of closest
-    for (int i = 0; i < observations.size(); ++i) {
-        double minDist = 999999999;
-        int minI = -1;
-
-        for (int j = 0; j < predicted.size(); ++j){
-            double dist = HELPER_FUNCTIONS_H_::dist(observations[i].x, observations[i].y,
-                                                   predicted[i].x, predicted[i].y);
-
-            if (dist < minDist) {
-                minDist = dist;
-                minI = j;
-            }
-        }
-
-        observations[i].x = predicted[minI].x;
-        observations[i].y = predicted[minI].y;
-    }
-}
-
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		const std::vector<LandmarkObs> &observations, const Map &map_landmarks) {
 	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
@@ -109,6 +88,51 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
+
+
+    for (int p_i = 0; p_i < num_particles; ++p_i) {
+        // init own weight
+        particles[p_i].weight = 1.0;
+
+        double selfX = particles[p_i].x;
+        double selfY = particles[p_i].y;
+        double selfT = particles[p_i].theta;
+
+        for (int i = 0; i < observations.size(); ++i) {
+            // negative theta to align with map (heading - heading = map)
+            double mapX = selfX + cos(-selfT) * observations[i].x -
+                          sin(-selfT) * observations[i].y;
+            double mapY = selfY + sin(-selfT) * observations[i].x +
+                          cos(-selfT) * observations[i].y;
+
+            // for each obs, find distance to closest landmark
+            double minDist = 999999999;
+            double diffX = 9999999;
+            double diffY = 9999999;
+
+            for (int j = 0; j < map_landmarks.landmark_list.size(); ++j){
+                double lmX = map_landmarks.landmark_list[j].x_f;
+                double lmY = map_landmarks.landmark_list[j].y_f;
+                double dist = HELPER_FUNCTIONS_H_::dist(mapX, mapY, lmX, lmY);
+
+                if (dist < minDist) {
+                    minDist = dist;
+                    diffX = abs(mapX - lmX);
+                    diffY = abs(mapY - lmY);
+                }
+            }
+
+            // calc weight for single obs to landmark
+            double sigX = std_landmark[0];
+            double sigY = std_landmark[1];
+            double gaussNorm = 1/(2 * M_PI * sigX * sigY);
+            double exponent = -((diffX * diffX)/(2*sigX*sigX) + (diffY * diffY)/(2*sigY*sigY));
+            double weight = gaussNorm * exp(exponent);
+
+            // update own weight
+            particles[p_i].weight *= weight;
+        }
+    }
 }
 
 void ParticleFilter::resample() {
@@ -116,19 +140,6 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-}
-
-Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
-                                     const std::vector<double>& sense_x, const std::vector<double>& sense_y)
-{
-    //particle: the particle to assign each listed association, and association's (x,y) world coordinates mapping to
-    // associations: The landmark id that goes along with each listed association
-    // sense_x: the associations x mapping already converted to world coordinates
-    // sense_y: the associations y mapping already converted to world coordinates
-
-    particle.associations= associations;
-    particle.sense_x = sense_x;
-    particle.sense_y = sense_y;
 }
 
 string ParticleFilter::getAssociations(Particle best)
