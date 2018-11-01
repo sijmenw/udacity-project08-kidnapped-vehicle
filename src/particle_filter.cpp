@@ -27,7 +27,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
     // inform of init
     std::cout << "Particle Filter initialization called!" << std::endl;
-    num_particles = 100;
+    num_particles = 10000;
     std::cout << "Number of particles: " << num_particles << std::endl;
 
     // create norm distributions for x, y and theta
@@ -94,12 +94,14 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         // init own weight
         particles[p_i].weight = 1.0;
 
+        // location of particle in MCS
         double selfX = particles[p_i].x;
         double selfY = particles[p_i].y;
         double selfT = particles[p_i].theta;
 
         for (int i = 0; i < observations.size(); ++i) {
             // negative theta to align with map (heading - heading = map)
+            // location of observation in MCS
             double mapX = selfX + cos(-selfT) * observations[i].x -
                           sin(-selfT) * observations[i].y;
             double mapY = selfY + sin(-selfT) * observations[i].x +
@@ -113,6 +115,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             for (int j = 0; j < map_landmarks.landmark_list.size(); ++j){
                 double lmX = map_landmarks.landmark_list[j].x_f;
                 double lmY = map_landmarks.landmark_list[j].y_f;
+
+                // check if landmark is in sensor range, if not, skip landmark
+                double range = HELPER_FUNCTIONS_H_::dist(selfX, selfY, lmX, lmX);
+                if (range > sensor_range) {
+                    continue;
+                }
+
                 double dist = HELPER_FUNCTIONS_H_::dist(mapX, mapY, lmX, lmY);
 
                 if (dist < minDist) {
@@ -140,6 +149,25 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
+    // create new particle vector
+    std::vector<Particle> newParticles;
+
+    // initialize distribution
+    std::vector<double> newWeights;
+    for (int i = 0; i < num_particles; ++i) {
+        newWeights.push_back(particles[i].weight);
+    }
+    weights = newWeights;
+
+    std::random_device rd;
+    std::discrete_distribution<> d(weights.begin(), weights.end());
+
+    for (int i = 0; i < num_particles; ++i) {
+        int idx = d(rd);
+        newParticles.push_back(particles[idx]);
+    }
+
+    particles = newParticles;
 }
 
 string ParticleFilter::getAssociations(Particle best)
