@@ -27,7 +27,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
     // inform of init
     std::cout << "Particle Filter initialization called!" << std::endl;
-    num_particles = 10000;
+    num_particles = 10;
     std::cout << "Number of particles: " << num_particles << std::endl;
 
     // create norm distributions for x, y and theta
@@ -57,8 +57,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
     // updates step
     for (int i = 0; i < num_particles; ++i) {
-        particles[i].x += (velocity/yaw_rate) * (sin(particles[i].theta + delta_t * yaw_rate) - sin(particles[i].theta));
-        particles[i].y += (velocity/yaw_rate) * (cos(particles[i].theta) - cos(particles[i].theta + yaw_rate * delta_t));
+        particles[i].x += (velocity/yaw_rate) * (sin(particles[i].theta + (delta_t * yaw_rate)) - sin(particles[i].theta));
+        particles[i].y += (velocity/yaw_rate) * (cos(particles[i].theta) - cos(particles[i].theta + (yaw_rate * delta_t)));
         particles[i].theta += delta_t * yaw_rate;
     }
 
@@ -93,6 +93,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     for (int p_i = 0; p_i < num_particles; ++p_i) {
         // init own weight
         particles[p_i].weight = 1.0;
+        std::vector<int> newAssociations;
 
         // location of particle in MCS
         double selfX = particles[p_i].x;
@@ -102,13 +103,14 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
         for (int i = 0; i < observations.size(); ++i) {
             // negative theta to align with map (heading - heading = map)
             // location of observation in MCS
-            double mapX = selfX + cos(-selfT) * observations[i].x -
-                          sin(-selfT) * observations[i].y;
-            double mapY = selfY + sin(-selfT) * observations[i].x +
-                          cos(-selfT) * observations[i].y;
+            double mapX = selfX + cos(selfT) * observations[i].x -
+                          sin(selfT) * observations[i].y;
+            double mapY = selfY + sin(selfT) * observations[i].x +
+                          cos(selfT) * observations[i].y;
 
             // for each obs, find distance to closest landmark
             double minDist = 999999999;
+            int minIdx = -1;
             double diffX = 9999999;
             double diffY = 9999999;
 
@@ -116,20 +118,18 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
                 double lmX = map_landmarks.landmark_list[j].x_f;
                 double lmY = map_landmarks.landmark_list[j].y_f;
 
-                // check if landmark is in sensor range, if not, skip landmark
-                double range = HELPER_FUNCTIONS_H_::dist(selfX, selfY, lmX, lmX);
-                if (range > sensor_range) {
-                    continue;
-                }
-
                 double dist = HELPER_FUNCTIONS_H_::dist(mapX, mapY, lmX, lmY);
 
                 if (dist < minDist) {
                     minDist = dist;
                     diffX = abs(mapX - lmX);
                     diffY = abs(mapY - lmY);
+                    minIdx = j;
                 }
             }
+
+            // add association
+            newAssociations.push_back(minIdx);
 
             // calc weight for single obs to landmark
             double sigX = std_landmark[0];
@@ -141,6 +141,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
             // update own weight
             particles[p_i].weight *= weight;
         }
+
+        particles[p_i].associations = newAssociations;
     }
 }
 
@@ -164,7 +166,12 @@ void ParticleFilter::resample() {
 
     for (int i = 0; i < num_particles; ++i) {
         int idx = d(rd);
-        newParticles.push_back(particles[idx]);
+
+        Particle tmp;
+        tmp.x = particles[idx].x;
+        tmp.y = particles[idx].y;
+        tmp.theta = particles[idx].theta;
+        newParticles.push_back(tmp);
     }
 
     particles = newParticles;
