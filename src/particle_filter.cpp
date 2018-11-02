@@ -56,7 +56,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 
     // updates step
-    if (std::abs(yaw_rate) != 0) {
+    if (std::abs(yaw_rate) < 0.00001) {
         for (int i = 0; i < num_particles; ++i) {
             particles[i].x += (velocity/yaw_rate) * (sin(particles[i].theta + (delta_t * yaw_rate)) - sin(particles[i].theta));
             particles[i].y += (velocity/yaw_rate) * (cos(particles[i].theta) - cos(particles[i].theta + (yaw_rate * delta_t)));
