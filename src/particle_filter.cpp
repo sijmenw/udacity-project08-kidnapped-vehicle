@@ -17,6 +17,7 @@
 
 #include "particle_filter.h"
 
+std::default_random_engine gen;
 using namespace std;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
@@ -27,11 +28,10 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
     // inform of init
     std::cout << "Particle Filter initialization called!" << std::endl;
-    num_particles = 10;
+    num_particles = 100;
     std::cout << "Number of particles: " << num_particles << std::endl;
 
     // create norm distributions for x, y and theta
-    std::default_random_engine gen;
     std::normal_distribution<double> norm_x(x, std[0]);
     std::normal_distribution<double> norm_y(y, std[1]);
     std::normal_distribution<double> norm_t(theta, std[2]);
@@ -56,7 +56,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
 
     // updates step
-    if (std::abs(yaw_rate) < 0.00001) {
+    if (std::abs(yaw_rate) > 0.00001) {
         for (int i = 0; i < num_particles; ++i) {
             particles[i].x += (velocity/yaw_rate) * (sin(particles[i].theta + (delta_t * yaw_rate)) - sin(particles[i].theta));
             particles[i].y += (velocity/yaw_rate) * (cos(particles[i].theta) - cos(particles[i].theta + (yaw_rate * delta_t)));
@@ -72,7 +72,6 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
     // add noise step
     // create norm distributions for x, y and theta
-    std::default_random_engine gen;
     std::normal_distribution<double> norm_x(0, std_pos[0]);
     std::normal_distribution<double> norm_y(0, std_pos[1]);
     std::normal_distribution<double> norm_t(0, std_pos[2]);
